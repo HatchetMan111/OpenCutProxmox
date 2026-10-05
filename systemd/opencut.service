@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenCut Classic – Open-Source Video-Editor (Docker Compose: web + db + redis + serverless-redis-http)
+Documentation=https://github.com/OpenCut-app/opencut-classic
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/opencut/opencut-classic
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
