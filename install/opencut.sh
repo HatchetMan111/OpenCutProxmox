@@ -476,11 +476,12 @@ else
 fi
 
 echo "[LXC] Upstream-Fix 3 pruefen (archiviertes Repo: IndexedDBAdapter positional statt Object-Params) ..."
-python3 - <<'PYEOF'
+RUNNER_PATH="\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/runner.ts"
+V1V2_PATH="\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/v1-to-v2.ts"
+python3 - "\$RUNNER_PATH" "\$V1V2_PATH" <<'PYEOF'
 import sys
 
-RUNNER = "\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/runner.ts"
-V1V2 = "\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/v1-to-v2.ts"
+RUNNER, V1V2 = sys.argv[1], sys.argv[2]
 
 def patch(path, marker, replacements):
     try:
@@ -503,6 +504,7 @@ def patch(path, marker, replacements):
     print(f"[LXC] {path} gepatcht ({len(replacements)} Ersetzungen).")
 
 T = "\t"
+BT = chr(96)  # Backtick ohne Backtick im Source (Bash-Heredoc wuerde sonst substituieren)
 DOL = chr(36)  # "$" ohne Dollarzeichen im Source (Bash-Heredoc- + Python-Escape-sicher)
 patch(RUNNER, 'dbName: "video-editor-projects"', [
     (
@@ -524,8 +526,8 @@ patch(V1V2, 'dbName: sceneDbName', [
         'new IndexedDBAdapter<LegacyTimelineData>({\n' + T*3 + 'dbName: projectDbName,\n' + T*3 + 'storeName: "timeline",\n' + T*3 + 'version: 1,\n' + T*2 + '})',
     ),
     (
-        'new IndexedDBAdapter<MediaAssetData>(\n' + T*2 + '`video-editor-media-' + DOL + '{projectId}`,\n' + T*2 + '"media-metadata",\n' + T*2 + '1,\n' + T + ')',
-        'new IndexedDBAdapter<MediaAssetData>({\n' + T*2 + 'dbName: `video-editor-media-' + DOL + '{projectId}`,\n' + T*2 + 'storeName: "media-metadata",\n' + T*2 + 'version: 1,\n' + T + '})',
+        'new IndexedDBAdapter<MediaAssetData>(\n' + T*2 + BT + 'video-editor-media-' + DOL + '{projectId}' + BT + ',\n' + T*2 + '"media-metadata",\n' + T*2 + '1,\n' + T + ')',
+        'new IndexedDBAdapter<MediaAssetData>({\n' + T*2 + 'dbName: ' + BT + 'video-editor-media-' + DOL + '{projectId}' + BT + ',\n' + T*2 + 'storeName: "media-metadata",\n' + T*2 + 'version: 1,\n' + T + '})',
     ),
 ])
 PYEOF
