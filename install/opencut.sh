@@ -594,13 +594,17 @@ __UNIT_FILE__
 UNITEOF_PLACEHOLDER
 systemctl daemon-reload
 systemctl enable ${APP}
-systemctl restart ${APP} || systemctl start ${APP}
+systemctl stop ${APP} || true
 
 echo "[LXC] Compose-Build + Start (kann beim ersten Mal mehrere Minuten dauern) ..."
 cd "\$UPSTREAM_DIR"
+echo "[LXC] Service stoppen (verhindert Compose-Race zwischen Service und Setup) ..."
+systemctl stop ${APP} || true
 docker compose build || { echo "[LXC][ERROR] docker compose build fehlgeschlagen." >&2; exit 1; }
-docker compose up -d
-systemctl restart ${APP} || true
+echo "[LXC] Alte/orphan Container aus frueheren Laeufen aufraeumen ..."
+docker compose down --remove-orphans || true
+echo "[LXC] Stack ueber systemd-Service starten (Service besitzt 'docker compose up') ..."
+systemctl restart ${APP} || systemctl start ${APP}
 systemctl is-active ${APP} || { echo "[LXC][ERROR] Service ${APP} nicht active." >&2; systemctl status ${APP} --no-pager --full || true; exit 1; }
 echo "[LXC] Setup fertig: systemctl is-active ${APP} = \$(systemctl is-active ${APP})"
 SETUP_EOF
