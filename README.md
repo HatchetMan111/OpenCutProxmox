@@ -19,7 +19,7 @@ systemd-Service mit `Restart=always`, Container mit `onboot=1`.
 | Upstream-Repo | `https://github.com/OpenCut-app/opencut-classic` |
 | Web UI | `http://<LXC-IP>:3100`, bind `0.0.0.0` via Docker-Ports |
 | Health | `http://<LXC-IP>:3100/api/health` (Upstream-Healthcheck) |
-| Standard-Ressourcen | 2 vCPU / 4096 MB RAM / 20 GB Disk (Minimum — 4 Docker-Dienste, mit 2 GB OOM) |
+| Standard-Ressourcen | 4 vCPU / 8192 MB RAM / 20 GB Disk (Build braucht 8 GB — mit 4 GB Swap-Thrash im Type-Check) |
 | CT-ID | immer die **nächste freie ID** (`pvesh get /cluster/nextid`), außer `--ctid` gesetzt |
 | Template | `debian-12-standard` (neuestes auf Storage `local`) |
 | LXC-Features | `nesting=1,keyctl=1` (Docker-Voraussetzung), unprivilegiert |
@@ -145,9 +145,11 @@ opencut-proxmox/                 # dieses Repo: NUR Proxmox-Installer, kein App-
 ```
 
 `install/opencut.sh` bettet die Unit-Vorlage aus `systemd/opencut.service` ein,
-damit der Einzeiler ohne weitere Dateien auskommt. Der Compose-Stack
-(`postgres:17`, `redis:7-alpine`, `serverless-redis-http`, `web` Build) wird im
-Container unter `/opt/opencut/opencut-classic` geklont/gebaut.
+damit der Einzeiler ohne weitere Dateien auskommt. Nach dem Clone patcht das Skript
+idempotent den fehlenden `isShortcutKey`-Guard in Upstream-`keybinding.ts`
+(archiviertes Repo, HEAD ohne Patch nicht baubar) und baut den Compose-Stack
+(`postgres:17`, `redis:7-alpine`, `serverless-redis-http`, `web` Build) im
+Container unter `/opt/opencut/opencut-classic`.
 
 ## 7. Hinweise
 
@@ -155,9 +157,11 @@ Container unter `/opt/opencut/opencut-classic` geklont/gebaut.
   nativ im LXC wären das mehrere GB Build-Deps und 10+ Minuten Bauzeit plus fragile
   WASM/Rust-Schritte. Die Compose-Datei ist der dokumentierte Self-Host-Weg
   (`docker compose up -d`) und macht den Installer idempotent und schnell.
-- **Warum 4 GB / 20 GB?** Web (Next.js Prod-Build) + Postgres + Redis + srh brauchen
-  real ~2,5–3,5 GB RAM und ~6–8 GB Images + Build-Cache. Mit 2 GB/8 GB droht OOM
-  bzw. volle Disk — darum warnt das Skript bei kleineren Werten.
+- **Warum 8 GB / 20 GB?** Web (Next.js Prod-Build, `tsc`-Type-Check) + Postgres + Redis + srh brauchen
+  real ~2,5–3,5 GB RAM im Lauf, aber der **Build** braucht ~6–8 GB (zwei jest-Worker allein ~3 GB).
+  Mit 4 GB läuft der Container in vollen Swap und der Build thrashd stundenlang ohne Fehlermeldung —
+  darum sind 8192 MB + 2048 MB Swap Default (verifiziert 2026-10-07: Compile 3,5 min → 98 s nach Hochskalieren).
+  Images + Build-Cache brauchen ~6–8 GB Disk — darum warnt das Skript unter 12 GB.
 - **LXC statt VM:** Mit `nesting=1,keyctl=1` läuft Docker stabil im unprivilegierten
   LXC — keine VM nötig (Classic rendert client-side via WASM, kein GPU-Bedarf).
   Nur wenn der Host kein nesting erlaubt, auf VM wechseln.

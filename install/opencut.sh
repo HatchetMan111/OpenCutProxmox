@@ -26,9 +26,9 @@ UPSTREAM_REPO="https://github.com/OpenCut-app/opencut-classic.git"
 UPSTREAM_DIR="/opt/opencut/opencut-classic"     # Clone-Ziel im LXC
 INSTALLER_REPO="https://raw.githubusercontent.com/HatchetMan111/OpenCutProxmox/main/install/opencut.sh"
 
-DEFAULT_CORES="2"                               # vCPU
-DEFAULT_RAM="4096"                              # RAM in MB (Minimum: web+db+redis+srh)
-DEFAULT_SWAP="1024"                             # Swap (MB)
+DEFAULT_CORES="4"                               # vCPU (Build braucht 4, sonst Type-Check-Thrash)
+DEFAULT_RAM="8192"                              # RAM in MB (Build braucht 8 GB, mit 4 GB Swap-Thrash)
+DEFAULT_SWAP="2048"                             # Swap (MB)
 DEFAULT_DISK="20"                               # Disk in GB (Images + Build + DB, min. 12)
 DEFAULT_BRIDGE="vmbr0"
 DEFAULT_TEMPLATE_STORE="local"                  # Storage für CT-Templates
@@ -372,7 +372,7 @@ if [[ "\$DOCKER_OK" != "1" ]]; then
   DCODENAME="\$(. /etc/os-release && echo "\$VERSION_CODENAME")"
   echo "deb [arch=\$DARCH signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \$DCODENAME stable" > /etc/apt/sources.list.d/docker.list
   apt-get update
-  if apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
+  if apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin; then
     echo "[LXC] Docker aus offiziellem Repo installiert."
   else
     echo "[LXC][WARN] Offizielles Docker-Repo fehlgeschlagen – Fallback: docker.io + Compose-Plugin-Binary von GitHub."
