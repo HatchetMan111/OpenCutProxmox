@@ -409,6 +409,39 @@ else
   git clone --depth 1 "\$UPSTREAM_REPO" "\$UPSTREAM_DIR"
 fi
 
+echo "[LXC] Upstream-Fix pruefen (archiviertes Repo: isShortcutKey-Guard fehlt an HEAD) ..."
+KEYBINDING_FILE="\$UPSTREAM_DIR/apps/web/src/actions/keybinding.ts"
+if [[ -f "\$KEYBINDING_FILE" ]]; then
+  if grep -q "export function isShortcutKey" "\$KEYBINDING_FILE"; then
+    echo "[LXC] isShortcutKey bereits vorhanden – Patch uebersprungen (idempotent)."
+  else
+    echo "[LXC] Patche fehlenden isShortcutKey-Guard in keybinding.ts ..."
+    cat >> "\$KEYBINDING_FILE" <<'PATCH_EOF'
+
+const MODIFIER_KEYS: ReadonlySet<string> = new Set([
+	"ctrl",
+	"alt",
+	"shift",
+	"ctrl+shift",
+	"alt+shift",
+	"ctrl+alt",
+	"ctrl+alt+shift",
+]);
+
+export function isShortcutKey(value: string): value is ShortcutKey {
+	if (isKey(value)) return true;
+	const separatorIndex = value.lastIndexOf("+");
+	if (separatorIndex <= 0) return false;
+	const modifier = value.slice(0, separatorIndex);
+	const key = value.slice(separatorIndex + 1);
+	return MODIFIER_KEYS.has(modifier) && isKey(key);
+}
+PATCH_EOF
+  fi
+else
+  echo "[LXC][WARN] \$KEYBINDING_FILE nicht gefunden – Patch uebersprungen."
+fi
+
 echo "[LXC] .env schreiben (Secrets behalten, SITE_URL auf aktuelle IP) ..."
 ENV_PATH="\$UPSTREAM_DIR/.env"
 touch "\$ENV_PATH"
