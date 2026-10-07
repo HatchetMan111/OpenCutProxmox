@@ -394,6 +394,11 @@ if [[ "\$DOCKER_OK" != "1" ]]; then
 fi
 docker --version
 docker compose version
+if ! docker buildx version >/dev/null 2>&1; then
+  echo "[LXC] buildx-Plugin fehlt (klassischer Builder aktiv) – installiere nach ..."
+  apt-get install -y --no-install-recommends docker-buildx-plugin || echo "[LXC][WARN] buildx-Install fehlgeschlagen – weiter mit klassischem Builder."
+  docker buildx version >/dev/null 2>&1 || true
+fi
 
 echo "[LXC] Container-IP ermitteln (fuer NEXT_PUBLIC_SITE_URL) ..."
 LXC_IP="\$(ip -4 -o addr show eth0 2>/dev/null | awk '\$4 !~ /^127\\./ {print \$4}' | cut -d/ -f1 | head -n1 || true)"
@@ -440,6 +445,34 @@ PATCH_EOF
   fi
 else
   echo "[LXC][WARN] \$KEYBINDING_FILE nicht gefunden – Patch uebersprungen."
+fi
+
+echo "[LXC] Upstream-Fix 2 pruefen (archiviertes Repo: isActionWithOptionalArgs-Guard fehlt an HEAD) ..."
+ACTIONS_DEFS="\$UPSTREAM_DIR/apps/web/src/actions/definitions.ts"
+if [[ -f "\$ACTIONS_DEFS" ]]; then
+  if grep -q "export function isActionWithOptionalArgs" "\$ACTIONS_DEFS"; then
+    echo "[LXC] isActionWithOptionalArgs bereits vorhanden – Patch uebersprungen (idempotent)."
+  else
+    echo "[LXC] Patche fehlenden isActionWithOptionalArgs-Guard in definitions.ts ..."
+    cat >> "\$ACTIONS_DEFS" <<'PATCH_EOF'
+
+const ACTIONS_WITH_REQUIRED_ARGS: ReadonlySet<string> = new Set([
+	"remove-media-asset",
+	"remove-media-assets",
+]);
+
+export function isActionWithOptionalArgs(
+	value: string,
+): value is TActionWithOptionalArgs {
+	return (
+		Object.prototype.hasOwnProperty.call(ACTIONS, value) &&
+		!ACTIONS_WITH_REQUIRED_ARGS.has(value)
+	);
+}
+PATCH_EOF
+  fi
+else
+  echo "[LXC][WARN] \$ACTIONS_DEFS nicht gefunden – Patch uebersprungen."
 fi
 
 echo "[LXC] .env schreiben (Secrets behalten, SITE_URL auf aktuelle IP) ..."
