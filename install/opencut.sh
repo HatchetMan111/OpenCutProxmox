@@ -475,6 +475,61 @@ else
   echo "[LXC][WARN] \$ACTIONS_DEFS nicht gefunden – Patch uebersprungen."
 fi
 
+echo "[LXC] Upstream-Fix 3 pruefen (archiviertes Repo: IndexedDBAdapter positional statt Object-Params) ..."
+python3 - <<'PYEOF'
+import sys
+
+RUNNER = "\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/runner.ts"
+V1V2 = "\$UPSTREAM_DIR/apps/web/src/services/storage/migrations/v1-to-v2.ts"
+
+def patch(path, marker, replacements):
+    try:
+        with open(path) as f:
+            src = f.read()
+    except FileNotFoundError:
+        print(f"[LXC][WARN] {path} nicht gefunden – Patch uebersprungen.")
+        return
+    if marker in src:
+        print(f"[LXC] {path} bereits gepatcht – uebersprungen (idempotent).")
+        return
+    for old, new in replacements:
+        count = src.count(old)
+        if count != 1:
+            print(f"[LXC][ERROR] Erwartet 1 Treffer, gefunden {count} in {path} fuer: {old[:60]!r}")
+            sys.exit(1)
+        src = src.replace(old, new)
+    with open(path, "w") as f:
+        f.write(src)
+    print(f"[LXC] {path} gepatcht ({len(replacements)} Ersetzungen).")
+
+T = "\t"
+DOL = chr(36)  # "$" ohne Dollarzeichen im Source (Bash-Heredoc- + Python-Escape-sicher)
+patch(RUNNER, 'dbName: "video-editor-projects"', [
+    (
+        'new IndexedDBAdapter<ProjectRecord>(\n' + T*2 + '"video-editor-projects",\n' + T*2 + '"projects",\n' + T*2 + '1,\n' + T + ')',
+        'new IndexedDBAdapter<ProjectRecord>({\n' + T*2 + 'dbName: "video-editor-projects",\n' + T*2 + 'storeName: "projects",\n' + T*2 + 'version: 1,\n' + T + '})',
+    ),
+    (
+        'projectsAdapter.set(projectId, result.project)',
+        'projectsAdapter.set({\n' + T*3 + 'key: projectId,\n' + T*3 + 'value: result.project,\n' + T*2 + '})',
+    ),
+])
+patch(V1V2, 'dbName: sceneDbName', [
+    (
+        'new IndexedDBAdapter<LegacyTimelineData>(\n' + T*2 + 'sceneDbName,\n' + T*2 + '"timeline",\n' + T*2 + '1,\n' + T + ')',
+        'new IndexedDBAdapter<LegacyTimelineData>({\n' + T*2 + 'dbName: sceneDbName,\n' + T*2 + 'storeName: "timeline",\n' + T*2 + 'version: 1,\n' + T + '})',
+    ),
+    (
+        'new IndexedDBAdapter<LegacyTimelineData>(\n' + T*3 + 'projectDbName,\n' + T*3 + '"timeline",\n' + T*3 + '1,\n' + T*2 + ')',
+        'new IndexedDBAdapter<LegacyTimelineData>({\n' + T*3 + 'dbName: projectDbName,\n' + T*3 + 'storeName: "timeline",\n' + T*3 + 'version: 1,\n' + T*2 + '})',
+    ),
+    (
+        'new IndexedDBAdapter<MediaAssetData>(\n' + T*2 + '`video-editor-media-' + DOL + '{projectId}`,\n' + T*2 + '"media-metadata",\n' + T*2 + '1,\n' + T + ')',
+        'new IndexedDBAdapter<MediaAssetData>({\n' + T*2 + 'dbName: `video-editor-media-' + DOL + '{projectId}`,\n' + T*2 + 'storeName: "media-metadata",\n' + T*2 + 'version: 1,\n' + T + '})',
+    ),
+])
+PYEOF
+
 echo "[LXC] .env schreiben (Secrets behalten, SITE_URL auf aktuelle IP) ..."
 ENV_PATH="\$UPSTREAM_DIR/.env"
 touch "\$ENV_PATH"
