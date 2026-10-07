@@ -532,6 +532,33 @@ patch(V1V2, 'dbName: sceneDbName', [
 ])
 PYEOF
 
+echo "[LXC] Upstream-Fix 4 pruefen (archiviertes Repo: stickers register positional statt Object-Param) ..."
+STICKERS_PATH="\$UPSTREAM_DIR/apps/web/src/stickers/providers/index.ts"
+python3 - "\$STICKERS_PATH" <<'PYEOF'
+import sys
+
+TARGET = sys.argv[1]
+T = "\t"
+try:
+    with open(TARGET) as f:
+        src = f.read()
+except FileNotFoundError:
+    print(f"[LXC][WARN] {TARGET} nicht gefunden – Patch uebersprungen.")
+    sys.exit(0)
+if "key: provider.id" in src:
+    print(f"[LXC] {TARGET} bereits gepatcht – uebersprungen (idempotent).")
+    sys.exit(0)
+old = "stickersRegistry.register(provider.id, provider);"
+if src.count(old) != 1:
+    print(f"[LXC][ERROR] Erwartet 1 Treffer, gefunden {src.count(old)} in {TARGET}.")
+    sys.exit(1)
+new = "stickersRegistry.register({\n" + T*3 + "key: provider.id,\n" + T*3 + "definition: provider,\n" + T*2 + "});"
+src = src.replace(old, new)
+with open(TARGET, "w") as f:
+    f.write(src)
+print(f"[LXC] {TARGET} gepatcht (1 Ersetzung).")
+PYEOF
+
 echo "[LXC] .env schreiben (Secrets behalten, SITE_URL auf aktuelle IP) ..."
 ENV_PATH="\$UPSTREAM_DIR/.env"
 touch "\$ENV_PATH"
